@@ -100,7 +100,7 @@ msgstr "$INFO[Window.Property(credits_remaining)] 秒后下一集"
 
 msgctxt "#30051"
 msgid "Back: keep watching"
-msgstr "留在当前视频"
+msgstr "按返回键继续观看当前视频"
 
 msgctxt "#30052"
 msgid "Skip intro"
