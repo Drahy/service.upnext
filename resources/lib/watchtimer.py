@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Track uninterrupted playback and the daily bedtime prompt."""
-from datetime import datetime
+from datetime import datetime, timedelta
 from time import monotonic
 
 
@@ -36,9 +36,16 @@ class WatchTimer:
         now = datetime.now() if now is None else now
         if not enabled:
             self.bedtime_pending = None
-        elif (0 <= hour <= 23 and 0 <= minute <= 59 and (now.hour, now.minute) >= (hour, minute)
-              and self.bedtime_acknowledged != now.date()):
-            self.bedtime_pending = now.date()
+        elif 0 <= hour <= 23 and 0 <= minute <= 59:
+            current = (now.hour, now.minute)
+            bedtime = (hour, minute)
+            night = None
+            if current >= bedtime and (bedtime >= (6, 0) or current < (6, 0)):
+                night = now.date()
+            elif current < (6, 0) <= bedtime:
+                night = now.date() - timedelta(days=1)
+            if night is not None and self.bedtime_acknowledged != night and self.bedtime_pending is None:
+                self.bedtime_pending = night
 
     def due(self, minutes, bedtime_enabled, hour, minute, *, now=None):
         now = datetime.now() if now is None else now

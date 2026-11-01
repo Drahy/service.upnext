@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-from datetime import datetime
+from datetime import date, datetime
+
+import pytest
 
 from watchtimer import WatchTimer
 from player import UpNextPlayer
@@ -42,6 +44,39 @@ def test_bedtime_stays_pending_if_episode_ends_after_midnight():
     assert timer.due(0, True, 23, 0, now=after_midnight)
     timer.reset(acknowledge_bedtime=True)
     assert not timer.due(0, True, 23, 0, now=after_midnight)
+
+
+@pytest.mark.parametrize('hour,minute,now,expected', [
+    (0, 30, datetime(2026, 11, 1, 15, 0), False),
+    (1, 0, datetime(2026, 11, 1, 20, 0), False),
+    (23, 0, datetime(2026, 11, 2, 0, 15), True),
+    (23, 0, datetime(2026, 11, 1, 23, 5), True),
+    (0, 30, datetime(2026, 11, 2, 0, 29), False),
+    (0, 30, datetime(2026, 11, 2, 0, 30), True),
+    (0, 30, datetime(2026, 11, 2, 5, 59), True),
+    (0, 30, datetime(2026, 11, 2, 6, 0), False),
+    (23, 0, datetime(2026, 11, 2, 6, 0), False),
+])
+def test_bedtime_window(hour, minute, now, expected):
+    assert WatchTimer().due(0, True, hour, minute, now=now) is expected
+
+
+def test_acknowledgement_belongs_to_night_start_and_resets_next_night():
+    timer = WatchTimer()
+    assert timer.due(0, True, 23, 0, now=datetime(2026, 11, 2, 0, 15))
+    assert timer.bedtime_pending == date(2026, 11, 1)
+    timer.reset(acknowledge_bedtime=True)
+    assert not timer.due(0, True, 23, 0, now=datetime(2026, 11, 2, 5, 59))
+    assert not timer.due(0, True, 23, 0, now=datetime(2026, 11, 2, 6, 0))
+    assert timer.due(0, True, 23, 0, now=datetime(2026, 11, 2, 23, 0))
+    assert timer.bedtime_pending == date(2026, 11, 2)
+
+
+def test_pending_bedtime_survives_morning_until_transition():
+    timer = WatchTimer()
+    timer.mark_bedtime(True, 23, 0, now=datetime(2026, 11, 2, 5, 59))
+    assert timer.due(0, True, 23, 0, now=datetime(2026, 11, 2, 6, 1))
+    assert timer.bedtime_pending == date(2026, 11, 1)
 
 
 def test_early_confirmation_does_not_acknowledge_later_bedtime():
