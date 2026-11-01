@@ -2,6 +2,8 @@
 from datetime import datetime
 
 from watchtimer import WatchTimer
+from player import UpNextPlayer
+from state import State
 
 
 def test_counts_active_time_across_episodes_without_pause_seek_or_buffering():
@@ -46,3 +48,13 @@ def test_early_confirmation_does_not_acknowledge_later_bedtime():
     timer = WatchTimer()
     timer.reset(acknowledge_bedtime=True)
     assert timer.due(0, True, 23, 0, now=datetime(2026, 11, 1, 23, 0))
+
+
+def test_natural_episode_transition_keeps_elapsed_time(monkeypatch):
+    monkeypatch.setattr(State, '_shared_state', {})
+    player = UpNextPlayer()
+    player.reset_queue = lambda: None
+    player.state.watch_timer.elapsed = 120
+    player.state.playing_next = True
+    player.onPlayBackEnded()
+    assert player.state.watch_timer.elapsed == 120
