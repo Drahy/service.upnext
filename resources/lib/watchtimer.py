@@ -40,7 +40,7 @@ class WatchTimer:
               and self.bedtime_acknowledged != now.date()):
             self.bedtime_pending = now.date()
 
-    def due(self, minutes, bedtime_enabled, hour, minute, now=None):
+    def due(self, minutes, bedtime_enabled, hour, minute, *, now=None):
         now = datetime.now() if now is None else now
         self.mark_bedtime(bedtime_enabled, hour, minute, now=now)
         timed = minutes > 0 and self.elapsed >= minutes * 60
