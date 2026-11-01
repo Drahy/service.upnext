@@ -209,6 +209,7 @@ class UpNextMonitor(Monitor):
         self._playback_state.update(last_file=self.player.get_last_file(), tracking=self.player.is_tracking(),
                                     played_in_a_row=self.player.state.played_in_a_row,
                                     current_tv_show_id=self.player.state.current_tv_show_id)
+        self._playback_state['watch_timer'] = getattr(self.player.state, 'watch_timer', None)
 
     def remember_for_sleep(self):
         # The queued sleep callback may run after the native player has stopped.
@@ -216,8 +217,6 @@ class UpNextMonitor(Monitor):
         # snapshot so ordinary stops cannot restore stale playback metadata.
         self.clear_sleep_state()
         self._sleep_state = deepcopy(self._playback_state)
-        if self._sleep_state is not None:
-            self._sleep_state['watch_timer'] = deepcopy(getattr(self.player.state, 'watch_timer', None))
 
     def restore_after_wake(self):
         if not self._sleep_state:

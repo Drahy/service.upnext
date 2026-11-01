@@ -2,6 +2,7 @@
 # GNU General Public License v2.0 (see COPYING or https://www.gnu.org/licenses/gpl-2.0.txt)
 
 from math import ceil
+from time import monotonic
 from xbmc import sleep
 from api import Api, credits_autoplay_deadline
 from demo import DemoOverlay
@@ -24,6 +25,7 @@ class PlaybackManager:
         self.state = State()
         self.player = UpNextPlayer()
         self.demo = DemoOverlay(12005)
+        self._watch_limit_check_at = 0
 
     def log(self, msg, level=2):
         ulog(msg, name=self.__class__.__name__, level=level)
@@ -189,6 +191,7 @@ class PlaybackManager:
         self.log('played in a row %s' % self.state.played_in_a_row, 2)
         showing_next_up_page = False
         showing_still_watching_page = False
+        self._watch_limit_check_at = 0
         if not self.still_watching_due(played_in_a_row_number):
             self.log('showing next up page as played in a row is %s' % self.state.played_in_a_row, 2)
             next_up_page.set_credits_countdown(int(ceil(credits_duration)) if credits_deadline is not None else None)
@@ -219,7 +222,10 @@ class PlaybackManager:
             self.state.watch_timer.observe(playing_file, play_time, self.state.pause)
 
             remaining = total_time - play_time
-            next_up_page.restore_after_playback_controls()
+            showing_next_up_page, showing_still_watching_page, credits_deadline = self.check_late_watch_limit(
+                next_up_page, still_watching_page, showing_next=showing_next_up_page,
+                showing_still=showing_still_watching_page, episode_limit=played_in_a_row_number,
+                remaining=remaining, credits_deadline=credits_deadline, play_time=play_time)
             if not self.state.pause:
                 if showing_next_up_page:
                     if credits_deadline is not None:
@@ -232,12 +238,36 @@ class PlaybackManager:
             sleep(100)
         return showing_next_up_page, showing_still_watching_page
 
+    def check_late_watch_limit(self, next_page, still_page, *, showing_next, showing_still,
+                               episode_limit, remaining, credits_deadline, play_time):
+        if showing_next:
+            next_page.restore_after_playback_controls()
+        if (not showing_next or self.state.pause or next_page.is_cancel() or next_page.is_watch_now()
+                or next_page.is_auto_advance()):
+            return showing_next, showing_still, credits_deadline
+        if not self.late_watch_limit_due(episode_limit, remaining, credits_deadline, play_time):
+            return showing_next, showing_still, credits_deadline
+        # Do not override an explicit action that arrived while settings were read.
+        if next_page.is_cancel() or next_page.is_watch_now() or next_page.is_auto_advance():
+            return showing_next, showing_still, credits_deadline
+        next_page.close()
+        still_page.show()
+        return False, True, None
+
     def still_watching_due(self, episode_limit):
         return (bool(episode_limit and int(self.state.played_in_a_row) >= int(episode_limit))
                 or self.state.watch_timer.due(get_setting_int('stillWatchingMinutes') or 0,
                                               get_setting_bool('bedtimeEnabled'),
                                               get_setting_int('bedtimeHour') or 0,
                                               get_setting_int('bedtimeMinute') or 0))
+
+    def late_watch_limit_due(self, episode_limit, remaining, credits_deadline, play_time):
+        now = monotonic()
+        critical = remaining <= 2 or (credits_deadline is not None and credits_deadline - play_time <= 1)
+        if now < self._watch_limit_check_at and not critical:
+            return False
+        self._watch_limit_check_at = now + 1
+        return self.still_watching_due(episode_limit)
 
     def _playback_position(self, playing_file):
         """Return (play_time, total_time) while the popup's own file is playing, otherwise None"""
