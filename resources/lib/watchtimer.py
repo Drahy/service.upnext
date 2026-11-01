@@ -44,7 +44,8 @@ class WatchTimer:
                 night = now.date()
             elif current < (6, 0) <= bedtime:
                 night = now.date() - timedelta(days=1)
-            if night is not None and self.bedtime_acknowledged != night and self.bedtime_pending is None:
+            if (night is not None and self.bedtime_acknowledged != night
+                    and (self.bedtime_pending is None or night > self.bedtime_pending)):
                 self.bedtime_pending = night
 
     def due(self, minutes, bedtime_enabled, hour, minute, *, now=None):

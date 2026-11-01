@@ -79,6 +79,17 @@ def test_pending_bedtime_survives_morning_until_transition():
     assert timer.bedtime_pending == date(2026, 11, 1)
 
 
+def test_pending_bedtime_is_updated_for_a_later_night():
+    timer = WatchTimer()
+    assert timer.due(0, True, 23, 0, now=datetime(2026, 11, 1, 23, 0))
+    assert timer.due(0, True, 23, 0, now=datetime(2026, 11, 2, 0, 15))
+    assert timer.bedtime_pending == date(2026, 11, 1)
+    assert timer.due(0, True, 23, 0, now=datetime(2026, 11, 2, 23, 0))
+    assert timer.bedtime_pending == date(2026, 11, 2)
+    timer.reset(acknowledge_bedtime=True)
+    assert not timer.due(0, True, 23, 0, now=datetime(2026, 11, 3, 0, 15))
+
+
 def test_early_confirmation_does_not_acknowledge_later_bedtime():
     timer = WatchTimer()
     timer.reset(acknowledge_bedtime=True)
