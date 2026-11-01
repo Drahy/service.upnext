@@ -47,9 +47,9 @@ class WatchTimer:
         bedtime = bedtime_enabled and self.bedtime_pending is not None
         return timed or bedtime
 
-    def reset(self, acknowledge_bedtime=False, now=None):
+    def reset(self, acknowledge_bedtime=False):
         self.elapsed = 0.0
         self.sample = None
-        if acknowledge_bedtime:
-            self.bedtime_acknowledged = self.bedtime_pending or (datetime.now() if now is None else now).date()
+        if acknowledge_bedtime and self.bedtime_pending is not None:
+            self.bedtime_acknowledged = self.bedtime_pending
             self.bedtime_pending = None

@@ -27,7 +27,7 @@ def test_optional_timer_and_daily_bedtime():
     assert timer.due(60, False, 23, 0, now=before)
     assert not timer.due(0, True, 23, 0, now=before)
     assert timer.due(0, True, 23, 0, now=at)
-    timer.reset(acknowledge_bedtime=True, now=at)
+    timer.reset(acknowledge_bedtime=True)
     assert timer.elapsed == 0
     assert not timer.due(0, True, 23, 0, now=at)
     assert timer.due(0, True, 23, 0, now=tomorrow)
@@ -38,5 +38,11 @@ def test_bedtime_stays_pending_if_episode_ends_after_midnight():
     timer.mark_bedtime(True, 23, 0, now=datetime(2026, 11, 1, 23, 30))
     after_midnight = datetime(2026, 11, 2, 0, 15)
     assert timer.due(0, True, 23, 0, now=after_midnight)
-    timer.reset(acknowledge_bedtime=True, now=after_midnight)
+    timer.reset(acknowledge_bedtime=True)
     assert not timer.due(0, True, 23, 0, now=after_midnight)
+
+
+def test_early_confirmation_does_not_acknowledge_later_bedtime():
+    timer = WatchTimer()
+    timer.reset(acknowledge_bedtime=True)
+    assert timer.due(0, True, 23, 0, now=datetime(2026, 11, 1, 23, 0))
