@@ -5,6 +5,7 @@ import pytest
 import api
 import playbackmanager
 import upnext
+from watchtimer import WatchTimer
 from test_playbackmanager import Stub
 
 
@@ -39,11 +40,14 @@ def test_notification_time_keeps_priority_without_changing_credits_start(monkeyp
 
 @pytest.fixture
 def run_credits(monkeypatch):
-    def run(action=None, offset=120, delay=6, mode=0, source='addon', queued=False, still=False, pause=False, replace=False, runtime=None):
+    def run(action=None, offset=120, delay=6, mode=0, source='addon', queued=False, still=False, pause=False, replace=False, runtime=None, timed=False):
         events, popups = [], []
         clock = Stub(time=120.0, ticks=0, active=True, file='current.mkv', replaced=None, window={}, error=None)
         state = Stub(playing_next=False, queued=False, track=True, include_watched=True,
-                     current_episode_id='current', play_mode=mode, played_in_a_row=1, pause=False)
+                     current_episode_id='current', play_mode=mode, played_in_a_row=1, pause=False,
+                     watch_timer=WatchTimer())
+        if timed:
+            state.watch_timer.elapsed = 61
 
         class Popup(upnext.UpNext):
             def __init__(self, *args):
@@ -86,9 +90,11 @@ def run_credits(monkeypatch):
                 clock.time += .5
             if clock.ticks == 2 and action in ('back', 'stop', 'watch'):
                 if action == 'back':
-                    popups[0].onAction(92)
+                    popups[1 if still or timed else 0].onAction(92)
+                elif action == 'watch' and (still or timed):
+                    popups[1].stillwatching = True
                 else:
-                    popups[0].onClick(3013 if action == 'stop' else 3012)
+                    popups[1 if still or timed else 0].onClick(3013 if action == 'stop' else 3012)
             if replace and clock.ticks == 2:
                 # Another episode starts and keeps playing past the original credits deadline
                 clock.file = 'replacement.mkv'
@@ -125,11 +131,12 @@ def run_credits(monkeypatch):
                 pass
 
         def setting(key):
-            return {'simpleMode': 0, 'playedInARow': 1 if still else 15, 'autoPlayCreditsTime': delay}[key]
+            return {'simpleMode': 0, 'playedInARow': 1 if still else 15, 'autoPlayCreditsTime': delay,
+                    'stillWatchingMinutes': 1 if timed else 0, 'bedtimeHour': 23, 'bedtimeMinute': 0}[key]
 
         monkeypatch.setattr(api, 'get_setting_int', setting)
         monkeypatch.setattr(playbackmanager, 'get_setting_int', setting)
-        monkeypatch.setattr(playbackmanager, 'get_setting_bool', lambda key: True)
+        monkeypatch.setattr(playbackmanager, 'get_setting_bool', lambda key: key != 'bedtimeEnabled')
         monkeypatch.setattr(playbackmanager, 'addon_path', lambda: '')
         monkeypatch.setattr(playbackmanager, 'set_property', clock.window.__setitem__)
         monkeypatch.setattr(playbackmanager, 'clear_property', lambda key: clock.window.pop(key, None))
@@ -170,6 +177,13 @@ def test_back_during_credits_keeps_video_and_does_not_advance(run_credits, actio
     events, _, _, _ = run_credits(action=action, queued=True)
     assert not any(event in events for event in ('stop', 'addon-next', 'playlist-next'))
     assert events.count('dequeue') == 1
+
+
+def test_elapsed_viewing_time_uses_still_watching_and_resets_on_confirmation(run_credits):
+    events, state, _, _ = run_credits(timed=True, action='watch')
+    assert events.count('addon-next') == 1
+    assert state.watch_timer.elapsed == 0
+    assert state.played_in_a_row == 1
 
 
 @pytest.mark.parametrize('delay', [6, 0])

@@ -189,7 +189,7 @@ class PlaybackManager:
         self.log('played in a row %s' % self.state.played_in_a_row, 2)
         showing_next_up_page = False
         showing_still_watching_page = False
-        if not played_in_a_row_number or int(self.state.played_in_a_row) < int(played_in_a_row_number):
+        if not self.still_watching_due(played_in_a_row_number):
             self.log('showing next up page as played in a row is %s' % self.state.played_in_a_row, 2)
             next_up_page.set_credits_countdown(int(ceil(credits_duration)) if credits_deadline is not None else None)
             next_up_page.show()
@@ -216,6 +216,7 @@ class PlaybackManager:
                     showing_still_watching_page = False
                 break
             play_time, total_time = position
+            self.state.watch_timer.observe(playing_file, play_time, self.state.pause)
 
             remaining = total_time - play_time
             next_up_page.restore_after_playback_controls()
@@ -230,6 +231,13 @@ class PlaybackManager:
                     still_watching_page.update_progress_control(remaining=remaining, runtime=episode.get('runtime'))
             sleep(100)
         return showing_next_up_page, showing_still_watching_page
+
+    def still_watching_due(self, episode_limit):
+        return (bool(episode_limit and int(self.state.played_in_a_row) >= int(episode_limit))
+                or self.state.watch_timer.due(get_setting_int('stillWatchingMinutes') or 0,
+                                              get_setting_bool('bedtimeEnabled'),
+                                              get_setting_int('bedtimeHour') or 0,
+                                              get_setting_int('bedtimeMinute') or 0))
 
     def _playback_position(self, playing_file):
         """Return (play_time, total_time) while the popup's own file is playing, otherwise None"""
@@ -267,6 +275,9 @@ class PlaybackManager:
 
         if next_up_page.is_watch_now() or still_watching_page.is_still_watching():
             self.state.played_in_a_row = 1
+            timer = getattr(self.state, 'watch_timer', None)
+            if timer:
+                timer.reset(acknowledge_bedtime=still_watching_page.is_still_watching())
         else:
             self.state.played_in_a_row += 1
         clear_property('service.upnext.dialog')

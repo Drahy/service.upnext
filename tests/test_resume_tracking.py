@@ -253,6 +253,7 @@ def test_wake_restores_still_watching_count_after_real_state_reset(sleeping_moni
     manager_state = player.State()
     sleeping_monitor.player.state.played_in_a_row = 3
     sleeping_monitor.player.state.current_tv_show_id = 'show'
+    sleeping_monitor.player.state.watch_timer.elapsed = 123
     sleeping_monitor.remember_playback()
     sleeping_monitor.onNotification('xbmc', 'System.OnSleep', '{}')
 
@@ -265,6 +266,8 @@ def test_wake_restores_still_watching_count_after_real_state_reset(sleeping_moni
 
     sleeping_monitor.onNotification('xbmc', 'System.OnWake', '{}')
     sleeping_monitor.restore_after_wake()
+    assert sleeping_monitor.player.state.watch_timer.elapsed == 123
+    assert sleeping_monitor.player.state.watch_timer.sample is None
     assert sleeping_monitor.player.state.played_in_a_row == 3
     assert manager_state.played_in_a_row == 3
     lookup = Stub(state=manager_state, get_playlist_position=lambda: False, log=lambda *args: None,
